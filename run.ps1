@@ -15,5 +15,6 @@ $downloads = Join-Path $projectPath "downloads"
 docker run --rm `
   -v "${linksPath}:/app/input_links.txt:ro" `
   -v "${downloads}:/app/music" `
+  -v "${projectPath}/.env:/app/.env:ro" `
   $ImageName `
   "input_links.txt" "/app/music"

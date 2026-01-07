@@ -6,8 +6,24 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from typing import List, Union
+from dotenv import load_dotenv
 
 SPOTIFY_PREFIX = "https://open.spotify.com/"
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Access CLIENTID and CLIENTSECRET from environment variables
+CLIENT_ID = os.getenv("CLIENTID")
+CLIENT_SECRET = os.getenv("CLIENTSECRET")
+
+class Song:
+    def __init__(self, title: str, artists: List[str], spotify_url: str, playlist_url: str, error: str):
+        self.title = title
+        self.artists = artists
+        self.spotify_url = spotify_url
+        self.playlist_url = playlist_url
+        self.error = error
 
 def setup_logging(output_dir: Path):
     """Setup logging to console + file"""
@@ -27,6 +43,8 @@ def setup_logging(output_dir: Path):
     return logger
 
 def clean_url(line: str) -> str:
+    if line.startswith("#"):
+        return ""
     line = line.strip()
     if not line:
         return ""
@@ -69,7 +87,9 @@ def run_spotdl_for_link(link: str, output_dir: Path, logger: logging.Logger) -> 
         "--audio", "youtube-music", "youtube", "bandcamp", # [{youtube,youtube-music,slider-kz,soundcloud,bandcamp,piped} ...] The audio provider to use. You can provide more than one for fallback.
 
         # 📝 LYRICS FALLBACKS (always tries all, embeds best)
-        "--lyrics", "genius", "musixmatch", "azlyrics", "synced", #[{genius,musixmatch,azlyrics,synced} ...] The lyrics provider to use. You can provide more than one for fallback. Synced lyrics might not work correctly with some music players. For such cases it's better to use `--generate-lrc` option.
+        # "--lyrics", "genius", "musixmatch", "azlyrics", "synced", #[{genius,musixmatch,azlyrics,synced} ...] The lyrics provider to use. You can provide more than one for fallback. Synced lyrics might not work correctly with some music players. For such cases it's better to use `--generate-lrc` option.
+        # "--lyrics", "",  # EMPTY = disables all lyrics
+        "--lyrics", "genius", #[{genius,musixmatch,azlyrics,synced} ...] The lyrics provider to use. You can provide more than one for fallback. Synced lyrics might not work correctly with some music players. For such cases it's better to use `--generate-lrc` option.
 
         # 🎛️ Core settings
         "--bitrate", "320k", #{auto,disable,8k,16k,24k,32k,40k,48k,64k,80k,96k,112k,128k,160k,192k,224k,256k,320k,0,1,2,3,4,5,6,7,8,9} The constant/variable bitrate to use for the output file. Values from 0 to 9 are variable bitrates. Auto will use the bitrate of the original file. Disable will disable the bitrate option. (In case of m4a and opus files, auto and disable will skip the conversion)
@@ -78,7 +98,7 @@ def run_spotdl_for_link(link: str, output_dir: Path, logger: logging.Logger) -> 
         "--overwrite", "skip", #{skip,metadata,force} How to handle existing/duplicate files. (When combined with --scan-for-songs force will remove all duplicates, and metadata will only apply metadata to the latest song and will remove the rest. )
         "--print-errors", #Print errors (wrong songs, failed downloads etc) on exit, useful for long playlist
         "--save-errors", str(errors_file), # Save errors (wrong songs, failed downloads etc) to a file
-        "--max-retries", "10", #The maximum number of retries to perform when getting metadata.
+        "--max-retries", "5", #The maximum number of retries to perform when getting metadata.
         "--preload", #Preload the download url to speed up the download process.
         "--scan-for-songs", #Scan the output directory for existing files. This option should be combined with the --overwrite option to control how existing files are handled. (Output directory is the last directory that is not a template variable in the output template)
 
@@ -97,8 +117,8 @@ def run_spotdl_for_link(link: str, output_dir: Path, logger: logging.Logger) -> 
         # "--album-type", "{single,album,compilation}", #Type of the album to search for. (album, single, compilation)
         # "--only-verified-results", #Use only verified results. (Not all providers support this)
         # "--user-auth", #Login to Spotify using OAuth.
-        # "--client-id", "CLIENT_ID", #The client id to use when logging in to Spotify.
-        # "--client-secret", "CLIENT_SECRET", #The client secret to use when logging in to Spotify.
+        "--client-id", CLIENT_ID, #The client id to use when logging in to Spotify.
+        "--client-secret", CLIENT_SECRET, #The client secret to use when logging in to Spotify.
         # "--auth-token", "AUTH_TOKEN", #The authorization token to use directly to log in to Spotify.
         # "--cache-path", "CACHE_PATH", #The path where spotipy cache file will be stored.
         # "--no-cache", #Disable caching (both requests and token).
@@ -176,6 +196,44 @@ def run_spotdl_for_link(link: str, output_dir: Path, logger: logging.Logger) -> 
         logger.info(f"💥 SpotDL error: {e}")
         return 1, Path(errors_file)
 
+def parse_errors(errors_file: Path, logger: logging.Logger, playlist_url: str) -> List[Song]:
+    """Parse spotdl errors file for failed songs."""
+    failed_songs = []
+    
+    spotify_url_pattern = re.compile(r'https://open\.spotify\.com/track/[^\s\)]+')
+    
+    try:
+        with errors_file.open("r", encoding="utf-8") as ef:
+            for line in ef:
+                line = line.strip()
+                if not line or not line.startswith('https://open.spotify.com/track/'):
+                    continue
+                
+                #https://open.spotify.com/track/6bFeIzkzsU45auYW1UUa47 - LookupError: No results found for song: NOTION - Dreams
+                if ' - LookupError: No results found for song:' in line:
+                    song_link = line.split(' - LookupError: No results found for song:', 1)[0]
+                    artists = line.split(' - LookupError: No results found for song:', 1)[1].split(' - ')[0]
+                    title = line.split(' - LookupError: No results found for song:', 1)[1].split(' - ')[1]
+                    failed_songs.append(Song(title.strip(), [a.strip() for a in artists.split(',')], song_link.strip(), playlist_url, "LookupError: No results found"))
+                    continue
+                
+                #https://open.spotify.com/track/2ZXsTQ8d1c75zMEJH0uj1R - KeyError: 'webCommandMetadata'
+                if " - KeyError: 'webCommandMetadata'" in line:
+                    song_link = line.split(' - KeyError:', 1)[0]
+                    failed_songs.append(Song("Unknown Title", ["Unknown Artist"], song_link.strip(), playlist_url, f"KeyError: 'webCommandMetadata'"))
+                    continue
+
+                #https://open.spotify.com/track/0PBQS0GycsYJ4yJJRjAIXU - AudioProviderError: YT-DLP download error - https://music.youtube.com/watch?v=ceXJTfuie6k
+                if " - AudioProviderError: YT-DLP download error - " in line:
+                    song_link = line.split(' - AudioProviderError: YT-DLP download error - ', 1)[0]
+                    failed_songs.append(Song("Unknown Title", ["Unknown Artist"], song_link.strip(), playlist_url, "AudioProviderError: YT-DLP download error"))
+                    continue
+    
+    except Exception as e:
+        logger.error(f"Failed to parse errors: {e}")
+    
+    return failed_songs
+
 def main():
     if len(sys.argv) < 3:
         print("Usage: python main.py <input_file> <output_dir>")
@@ -209,10 +267,13 @@ def main():
         logger.info(errors_file)
 
         if errors_file.is_file():
-            with errors_file.open("r", encoding="utf-8") as ef:
-                logger.info("🔍 Errors found in playlist:")
-                for line in ef:
-                    logger.info(f"   {line.strip()}")
+            failed_songs = parse_errors(errors_file, logger, link)
+            if failed_songs:
+                logger.info(f"🔍 {len(failed_songs)} failed songs found in playlist - {failed_songs[0].playlist_url}:")
+                for song in failed_songs:
+                    logger.info(f"  ❌ {song.spotify_url} - {song.error} - {song.title} - {', '.join(song.artists)}")
+            else:
+                logger.info("✅ No lookup errors found")
 
     logger.info(f"\n🎉 Complete! Final exit code: {exit_code}")
     logger.info(f"📁 Files in: {output_dir}")
@@ -220,3 +281,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
