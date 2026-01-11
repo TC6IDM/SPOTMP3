@@ -6,7 +6,7 @@ import sys
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import List, Union
+from typing import List
 from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotdl.utils import spotify
@@ -53,6 +53,84 @@ class Song:
         if playlist == None: self.playlist = Playlist(playlist_url)
         else: self.playlist = playlist
         self.list_position = list_position
+
+def check_missing_tracks_with_metadata(playlist_url: str, playlist_name: str, output_dir: Path, logger: logging.Logger):
+    """
+    Use METADATA total count (not files) as expected_count.
+    """
+    playlist_dir = output_dir / playlist_name
+    metadata_path = output_dir / ".metadata" / f"{playlist_name}.json"
+    
+    if not metadata_path.is_file():
+        logger.info(f"📄 No metadata for: {playlist_name}")
+        return []
+    
+    if not playlist_dir.is_dir():
+        logger.info(f"📁 No playlist dir: {playlist_name}")
+        return []
+
+    # Load metadata FIRST for expected_count
+    try:
+        with metadata_path.open("r", encoding="utf-8") as f:
+            meta = json.load(f)
+        tracks = meta.get("tracks", {}).get("items", [])
+        expected_count = len(tracks)  # Use metadata total!
+        logger.info(f"📊 Metadata shows {expected_count} tracks expected")
+    except Exception as e:
+        logger.error(f"❌ Failed to load metadata: {e}")
+        return []
+
+    # Extract numbers + padding from EXISTING files
+    numbers = []
+    padding = 0
+    for p in playlist_dir.iterdir():
+        if p.is_file() and p.suffix.lower() in ('.mp3', '.flac', '.m4a'):
+            match = re.match(r'^\s*(\d+)', p.stem)
+            if match:
+                num_str = match.group(1)
+                numbers.append(int(num_str))
+                padding = max(padding, len(num_str))
+
+    if not numbers:
+        logger.info(f"ℹ️ No numbered files in: {playlist_name}")
+        return []
+
+    numbers.sort()
+    missing_numbers = [n for n in range(1, expected_count + 1) if n not in numbers]
+
+    if not missing_numbers:
+        logger.info(f"✅ All {expected_count} tracks present in: {playlist_name}")
+        return []
+
+    # Create Song objects for missing tracks
+    missing_songs = []
+    for num in missing_numbers:
+        if num - 1 < len(tracks):
+            track_item = tracks[num - 1]
+            track = track_item.get("track") or track_item
+            title = track.get("name", "").strip()
+            artists = [a.get("name", "") for a in track.get("artists", [])]
+            spotify_url = track.get("external_urls", {}).get("spotify", "")
+            
+            num_str = f"{num:0{padding}d}"
+            
+            missing_songs.append(Song(
+                spotify_url=spotify_url,
+                playlist_url="",
+                error=f"Missing {num_str}",
+                title=title,
+                artists=artists,
+                playlist=Playlist(playlist_url=playlist_url, name=playlist_name, length=expected_count),
+                list_position=num_str
+            ))
+
+    logger.info(f"⚠️ {len(missing_songs)} missing tracks in {playlist_name} (expected {expected_count}, padding={padding}):")
+    for song in missing_songs:
+        logger.info(f"  🚫 {song.error} {song.title} - {', '.join(song.artists)}")
+        logger.info(f"     {song.spotify_url}")
+
+    return missing_songs
+
 
 def getImage(url: str, output_dir: Path, logger: logging.Logger):  # Add output_dir param
     client_credentials_manager = SpotifyClientCredentials(
@@ -158,7 +236,7 @@ def read_spotify_links(input_path: Path, logger: logging.Logger) -> list[str]:
 def run_spotdl_for_link(link: str, output_dir: Path, logger: logging.Logger) -> tuple[int, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    errors_dir = output_dir / "errors"
+    errors_dir = output_dir / ".errors"
     errors_dir = Path(errors_dir)  # Ensure errors_dir is a Path object
     errors_dir.mkdir(parents=True, exist_ok=True)
     errors_file = f"{errors_dir}/errors-{datetime.now().strftime('%Y%m%d%H%M%S')}.txt"
@@ -265,10 +343,12 @@ def main():
         
         logger.info(errors_file)
 
+        check_missing_tracks_with_metadata(link, name, output_dir, logger)
+
         if errors_file.is_file():
             failed_songs = parse_errors(errors_file, logger, link)
             if failed_songs:
-                logger.info(f"🔍 {len(failed_songs)} failed songs found in playlist - {link}:")
+                logger.info(f"🔍 {len(failed_songs)} errors found in playlist - {link}:")
                 for song in failed_songs:
                     logger.info(f"  ❌ {song.spotify_url} - {song.error} - {song.title} - {', '.join(song.artists)}")
             else:
