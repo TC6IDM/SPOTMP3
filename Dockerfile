@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir spotdl spotipy python-dotenv scdl yt-dlp
 
 WORKDIR /app
 COPY main.py /app/main.py
+COPY src/ /app/src/
 RUN mkdir -p /music
 
 ENTRYPOINT ["python", "main.py"]

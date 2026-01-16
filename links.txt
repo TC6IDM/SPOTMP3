@@ -4,7 +4,6 @@
 #https://open.spotify.com/playlist/1mmTArDUzA1VKiBNv6aKyE?si=665e0e7bb93a4b18 test
 
 #https://open.spotify.com/artist/1uRVM0wBdtyEuU582EeKJM?si=366b5c1dfa4643cb Notion
-#https://open.spotify.com/artist/6mmSS7itNWKbapgG2eZbIg?si=5180684731a940bf Knock2
 #https://open.spotify.com/playlist/0PvznQUIyMYYr6AqJZsqpb?si=96ed25cc567543d3 country
 #https://open.spotify.com/playlist/4NaUts1C5AFpYs05RgldDM?si=c683809ea71b4f1d Dad Rock
 #https://open.spotify.com/playlist/7iQO3DjW2vTZHCrmPvPatH?si=ee49945ec9e24620 Grime House
@@ -14,8 +13,13 @@
 #https://open.spotify.com/album/5nY7Z4vvGxGsnPWaiTQa5y?si=Jazh1hJuRv-RZ54SlEMW3w
 #https://open.spotify.com/playlist/0PvznQUIyMYYr6AqJZsqpb?si=886cd3753c72470a COUNTRY
 
-https://soundcloud.com/user-579726783/sets/tren-twins-anabolic-af tren twins
+#https://soundcloud.com/user-579726783/sets/tren-twins-anabolic-af tren twins
 
-https://www.youtube.com/watch?v=9Bx76EQZIew&list=PLQylghHje1b94Yfl5fx8ZHbN99K7gH1xz youtube music
+#https://www.youtube.com/watch?v=9Bx76EQZIew&list=PLQylghHje1b94Yfl5fx8ZHbN99K7gH1xz youtube music
 
-https://soundcloud.com/tc6idm/sets/new-1 new soundcloud link
+#https://soundcloud.com/tc6idm/sets/new-1 new soundcloud link
+
+#https://open.spotify.com/playlist/5AGzE57bc2WznOOsK6C1EB?si=33fadf086fe545e4 male manipulator music
+#https://open.spotify.com/artist/6mmSS7itNWKbapgG2eZbIg?si=5180684731a940bf Knock2
+#https://open.spotify.com/track/6QWqy98sVOhrj00laLuhGb?si=0531f067c9b648de pressure
+#https://open.spotify.com/album/3mH6qwIy9crq0I9YQbOuDf?si=Y14z-3ROQgGFGwfmH5V8Jg blonde
